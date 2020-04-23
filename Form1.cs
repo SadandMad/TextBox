@@ -51,7 +51,7 @@ namespace TalkBox
             {
                 Type = D[0];
                 MsgLength = BitConverter.ToUInt16(D, 1);
-                Data = new byte[MsgLength-3];
+                Data = new byte[MsgLength-3];    
                 Buffer.BlockCopy(D, 3, Data, 0, MsgLength - 3);
             }
             public byte[] getBytes()
@@ -90,7 +90,7 @@ namespace TalkBox
 
         private void buttonSend_Click(object sender, EventArgs e)
         {
-            if (Connected)
+            if (Connected && textBoxMsg.Text.Length > 0)
             {
                 TalkPacket msg = new TalkPacket(3, textBoxMsg.Text);
                 ListMessages.Items.Add(" Вы: " + textBoxMsg.Text);
@@ -169,18 +169,19 @@ namespace TalkBox
             UdpClient client = new UdpClient(8005);
             client.JoinMulticastGroup(IPAddress.Parse("230.230.230.230"), 50);
             IPEndPoint remoteIp = null;
-            try
+            //try
             {
                 while (!token.IsCancellationRequested)
                 {
                     byte[] data = client.Receive(ref remoteIp);
                     TalkPacket msg = new TalkPacket(data);
-                    Sub sub = new Sub(msg.Data.ToString(), remoteIp);
+                    Sub sub = new Sub(Encoding.ASCII.GetString(msg.Data), remoteIp);
                     if (msg.Type == 1)
                     {
                         if (!Subs.Contains(sub))
-                            Subs.Add(sub); 
+                            Subs.Add(sub);
                         lb.Items.Add("     " + sub.name + " присоединился к разговору.");
+                        MessageBox.Show(sub.name + " присоединился к разговору.");///////////////////////////
                         TcpClient sender = new TcpClient(remoteIp);
                         NetworkStream stream = sender.GetStream();
                         msg = new TalkPacket(1, UserName);
@@ -194,15 +195,16 @@ namespace TalkBox
                         {
                             Subs.Remove(sub);
                             lb.Items.Add("     " + sub.name + " покинул нас.");
+                            MessageBox.Show(sub.name + " покинул нас.");/////////////////////////////
                         }
                     }
                     else
                         MessageBox.Show("An error occured!");
                 }
             }
-            catch (Exception ex)
+            //catch (Exception ex)
             {
-                MessageBox.Show(ex.Message);
+            //    MessageBox.Show(ex.Message);
             }
             client.Close();
         }
@@ -222,11 +224,12 @@ namespace TalkBox
                     IPEndPoint iep = (IPEndPoint)client.Client.RemoteEndPoint;
                     if (msg.Type == 1)
                     {
-                        Sub sub = new Sub(msg.Data.ToString(), iep);
+                        Sub sub = new Sub(Encoding.ASCII.GetString(msg.Data), iep);
                         if (!Subs.Contains(sub))
                         {
                             Subs.Add(sub);
                             lb.Items.Add("     " + sub.name + " присоединился к разговору.");
+                            MessageBox.Show(sub.name + " присоединился к разговору.");////////////////////////////////
                         }
                     }
                     else if (msg.Type == 2)
@@ -241,6 +244,7 @@ namespace TalkBox
                             }
                         }
                         lb.Items.Add(name + ": " + Encoding.ASCII.GetString(msg.Data));
+                        MessageBox.Show(name + ": " + Encoding.ASCII.GetString(msg.Data));///////////////////////////////
                     }
                     else
                         MessageBox.Show("An error occured!");
