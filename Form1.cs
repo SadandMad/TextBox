@@ -108,8 +108,10 @@ namespace TalkBox
                 textBoxName.Enabled = false;
                 buttonConnect.Text = "Отключиться";
                 Connected = true;
-                Task receiveTask = new Task(ReceiveMessage);
-                receiveTask.Start();
+                Task receiveUDP = new Task(ReceiveConnection);
+                Task receiveTCP = new Task(ReceiveMessage);
+                receiveUDP.Start();
+                receiveTCP.Start();
                 MessageBox.Show("Вы подключились к чату");
             }
             catch (Exception ex)
@@ -140,7 +142,7 @@ namespace TalkBox
                 client.Close();
             }
         }
-        private void ReceiveMessage()
+        private void ReceiveConnection()
         {
             UdpClient client = new UdpClient(8005);
             client.JoinMulticastGroup(IPAddress.Parse("230.230.230.230"), 50);
@@ -151,8 +153,21 @@ namespace TalkBox
                 {
                     byte[] data = client.Receive(ref remoteIp);
                     TalkPacket msg = new TalkPacket(data);
-                    // Отображение полученного сообщения
-                    // ListMessages.Items.Add(Encoding.ASCII.GetString(msg.Data));
+                    if (msg.Type == 1)
+                    {
+                        TcpClient sender = new TcpClient(remoteIp);
+                        NetworkStream stream = sender.GetStream();
+                        msg = new TalkPacket(1, UserName);
+                        stream.Write(msg.getBytes(), 0, msg.MsgLength);
+                        stream.Close();
+                        sender.Close();
+                    }
+                    else if (msg.Type == 0)
+                    { 
+                    
+                    }
+                    else
+                        MessageBox.Show("An error occured!");
                 }
             }
             catch (Exception ex)
@@ -162,6 +177,35 @@ namespace TalkBox
             finally
             {
                 client.Close();
+            }
+        }
+        private void ReceiveMessage()
+        {
+            TcpListener listener = new TcpListener(IPAddress.Parse("230.230.230.230"), 50);
+            listener.Start();
+            byte[] data = new byte[65536];
+            try
+            {
+                while (Connected)
+                {
+                    TcpClient client = listener.AcceptTcpClient();
+                    NetworkStream stream = client.GetStream();
+
+                    stream.Read(data, 0, data.Length);
+                    TalkPacket msg = new TalkPacket(data);
+                    // Отображение полученного сообщения
+                    // ListMessages.Items.Add(Encoding.ASCII.GetString(msg.Data));
+                    client.Close();
+                    stream.Close();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+            }
+            finally
+            {
+                listener.Stop();
             }
         }
     }
