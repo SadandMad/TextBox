@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -13,9 +14,10 @@ namespace TalkBox
         internal String UserName;
         internal bool Connected = false;
         internal List<Sub> Subs = new List<Sub>();
-        Task receiveUDP;
-        Task receiveTCP;
-
+        internal Task receiveUDP;
+        internal Task receiveTCP;
+        internal CancellationTokenSource cancelTokenSource = new CancellationTokenSource();
+        internal CancellationToken token;
         internal class Sub
         {
             public string name;
@@ -49,11 +51,8 @@ namespace TalkBox
             {
                 Type = D[0];
                 MsgLength = BitConverter.ToUInt16(D, 1);
-                //if (MsgLength > 3)
-                {
-                    Data = new byte[MsgLength-3];
-                    Buffer.BlockCopy(D, 3, Data, 0, MsgLength - 3);
-                }
+                Data = new byte[MsgLength-3];
+                Buffer.BlockCopy(D, 3, Data, 0, MsgLength - 3);
             }
             public byte[] getBytes()
             {
@@ -129,6 +128,7 @@ namespace TalkBox
                 textBoxName.Enabled = false;
                 buttonConnect.Text = "Отключиться";
                 Connected = true;
+                token = cancelTokenSource.Token;
                 receiveUDP = new Task(() => ReceiveConnection(lb));
                 receiveTCP = new Task(() => ReceiveMessage(lb));
                 receiveUDP.Start();
@@ -152,8 +152,7 @@ namespace TalkBox
                 textBoxName.Enabled = true;
                 buttonConnect.Text = "Подключиться";
                 Connected = false;
-                receiveUDP.Dispose();
-                receiveTCP.Dispose();
+                cancelTokenSource.Cancel();
                 lb.Items.Add("     Вы покинули нас.");
             }
             catch (Exception ex)
@@ -172,7 +171,7 @@ namespace TalkBox
             IPEndPoint remoteIp = null;
             try
             {
-                while (Connected)
+                while (!token.IsCancellationRequested)
                 {
                     byte[] data = client.Receive(ref remoteIp);
                     TalkPacket msg = new TalkPacket(data);
@@ -214,7 +213,7 @@ namespace TalkBox
             byte[] data = new byte[65536];
             try
             {
-                while (Connected)
+                while (!token.IsCancellationRequested)
                 {
                     TcpClient client = listener.AcceptTcpClient();
                     NetworkStream stream = client.GetStream();
