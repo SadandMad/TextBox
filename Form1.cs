@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -9,10 +10,21 @@ namespace TalkBox
 {
     public partial class Form1 : Form
     {
-        String UserName;
+        internal String UserName;
         internal bool Connected = false;
-        
+        internal List<Sub> Subs = new List<Sub>();
 
+        internal class Sub
+        {
+            public string name;
+            public IPEndPoint endPoint;
+
+            public Sub(string str, IPEndPoint iep)
+            {
+                name = str;
+                endPoint = iep;
+            }
+        }
 
         internal class TalkPacket
         {
@@ -79,12 +91,17 @@ namespace TalkBox
         {
             if (Connected)
             {
-                UdpClient client = new UdpClient();
-                IPEndPoint endPoint = new IPEndPoint(IPAddress.Parse("230.230.230.230"), 8005);
-                TalkPacket msg = new TalkPacket(3, textBoxMsg.Text);
-                textBoxMsg.Text = "";
-                client.Send(msg.getBytes(), msg.MsgLength,endPoint);
-                client.Close();
+                foreach (Sub sub in Subs)
+                {
+                    IPEndPoint iep = sub.endPoint;
+                    TcpClient client = new TcpClient(iep);
+                    TalkPacket msg = new TalkPacket(3, textBoxMsg.Text);
+                    textBoxMsg.Text = "";
+                    NetworkStream stream = client.GetStream();
+                    stream.Write(msg.getBytes(), 0, msg.MsgLength);
+                    stream.Close();
+                    client.Close();
+                }
             }
             else
                 MessageBox.Show("Вы не подключены к чату.");
@@ -153,8 +170,13 @@ namespace TalkBox
                 {
                     byte[] data = client.Receive(ref remoteIp);
                     TalkPacket msg = new TalkPacket(data);
+                    Sub sub = new Sub(msg.Data.ToString(), remoteIp);
                     if (msg.Type == 1)
                     {
+                        if (!Subs.Contains(sub))
+                            Subs.Add(sub);
+                        // Кто-то пришёл
+                        MessageBox.Show(sub.name + " присоединился к разговору.");
                         TcpClient sender = new TcpClient(remoteIp);
                         NetworkStream stream = sender.GetStream();
                         msg = new TalkPacket(1, UserName);
@@ -163,8 +185,13 @@ namespace TalkBox
                         sender.Close();
                     }
                     else if (msg.Type == 0)
-                    { 
-                    
+                    {
+                        if (Subs.Contains(sub))
+                        {
+                            Subs.Remove(sub);
+                            // Кто-то ливнул
+                            MessageBox.Show("Кто-то покинул чат.");
+                        }
                     }
                     else
                         MessageBox.Show("An error occured!");
@@ -181,7 +208,7 @@ namespace TalkBox
         }
         private void ReceiveMessage()
         {
-            TcpListener listener = new TcpListener(IPAddress.Parse("230.230.230.230"), 50);
+            TcpListener listener = new TcpListener(IPAddress.Parse(GetLocalIPAddress()), 50);
             listener.Start();
             byte[] data = new byte[65536];
             try
@@ -190,11 +217,27 @@ namespace TalkBox
                 {
                     TcpClient client = listener.AcceptTcpClient();
                     NetworkStream stream = client.GetStream();
-
                     stream.Read(data, 0, data.Length);
                     TalkPacket msg = new TalkPacket(data);
-                    // Отображение полученного сообщения
-                    // ListMessages.Items.Add(Encoding.ASCII.GetString(msg.Data));
+                    if (msg.Type == 1)
+                    {
+                        IPEndPoint iep = (IPEndPoint)client.Client.RemoteEndPoint;
+                        Sub sub = new Sub(msg.Data.ToString(), iep);
+                        if (!Subs.Contains(sub))
+                        {
+                            Subs.Add(sub);
+                            // Кто-то пришёл
+                            MessageBox.Show(sub.name + " присоединился к разговору.");
+                        }
+                    }
+                    else if (msg.Type == 2)
+                    {
+                        // Отображение полученного сообщения
+                        // ListMessages.Items.Add(Encoding.ASCII.GetString(msg.Data));
+                        MessageBox.Show("Сообщение получено.");
+                    }
+                    else
+                        MessageBox.Show("An error occured!");
                     client.Close();
                     stream.Close();
                 }
@@ -207,6 +250,18 @@ namespace TalkBox
             {
                 listener.Stop();
             }
+        }
+        public static string GetLocalIPAddress()
+        {
+            var host = Dns.GetHostEntry(Dns.GetHostName());
+            foreach (var ip in host.AddressList)
+            {
+                if (ip.AddressFamily == AddressFamily.InterNetwork)
+                {
+                    return ip.ToString();
+                }
+            }
+            throw new Exception("No network adapters with an IPv4 address in the system!");
         }
     }
     public static class StringExtension
