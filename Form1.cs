@@ -13,6 +13,8 @@ namespace TalkBox
         internal String UserName;
         internal bool Connected = false;
         internal List<Sub> Subs = new List<Sub>();
+        Task receiveUDP;
+        Task receiveTCP;
 
         internal class Sub
         {
@@ -47,7 +49,7 @@ namespace TalkBox
             {
                 Type = D[0];
                 MsgLength = BitConverter.ToUInt16(D, 1);
-                if (MsgLength > 3)
+                //if (MsgLength > 3)
                 {
                     Data = new byte[MsgLength-3];
                     Buffer.BlockCopy(D, 3, Data, 0, MsgLength - 3);
@@ -76,14 +78,14 @@ namespace TalkBox
                 UserName = textBoxName.Text.Trim();
                 if (UserName.Length > 3 && UserName.Length < 13)
                 {
-                    ConnectChat();
+                    ConnectChat(ListMessages);
                 }
                 else
                     MessageBox.Show("Введите имя для вашего аккаунта!");
             }
             else
             {
-                LeaveChat();
+                LeaveChat(ListMessages);
             }
         }
 
@@ -91,12 +93,14 @@ namespace TalkBox
         {
             if (Connected)
             {
+                TalkPacket msg = new TalkPacket(3, textBoxMsg.Text);
+                ListMessages.Items.Add("ВЫ: " + textBoxMsg.Text);
+                textBoxMsg.Text = "";
+
                 foreach (Sub sub in Subs)
                 {
                     IPEndPoint iep = sub.endPoint;
                     TcpClient client = new TcpClient(iep);
-                    TalkPacket msg = new TalkPacket(3, textBoxMsg.Text);
-                    textBoxMsg.Text = "";
                     NetworkStream stream = client.GetStream();
                     stream.Write(msg.getBytes(), 0, msg.MsgLength);
                     stream.Close();
@@ -110,9 +114,9 @@ namespace TalkBox
         private void Form1_FormClosed(object sender, FormClosedEventArgs e)
         {
             if (Connected)
-                LeaveChat();
+                LeaveChat(ListMessages);
         }
-        private void ConnectChat()
+        private void ConnectChat(ListBox lb)
         {
             textBoxName.Text = UserName;
             UdpClient client = new UdpClient();
@@ -125,11 +129,11 @@ namespace TalkBox
                 textBoxName.Enabled = false;
                 buttonConnect.Text = "Отключиться";
                 Connected = true;
-                Task receiveUDP = new Task(ReceiveConnection);
-                Task receiveTCP = new Task(ReceiveMessage);
+                receiveUDP = new Task(() => ReceiveConnection(lb));
+                receiveTCP = new Task(() => ReceiveMessage(lb));
                 receiveUDP.Start();
                 receiveTCP.Start();
-                MessageBox.Show("Вы подключились к чату");
+                lb.Items.Add("     Вы присоединились к разговору.");
             }
             catch (Exception ex)
             {
@@ -137,7 +141,7 @@ namespace TalkBox
                 MessageBox.Show(ex.Message);
             }
         }
-        private void LeaveChat()
+        private void LeaveChat(ListBox lb)
         {
             UdpClient client = new UdpClient();
             IPEndPoint endPoint = new IPEndPoint(IPAddress.Parse("230.230.230.230"), 8005);
@@ -148,7 +152,9 @@ namespace TalkBox
                 textBoxName.Enabled = true;
                 buttonConnect.Text = "Подключиться";
                 Connected = false;
-                MessageBox.Show("Вы отключились от чата");
+                receiveUDP.Dispose();
+                receiveTCP.Dispose();
+                lb.Items.Add("     Вы покинули нас.");
             }
             catch (Exception ex)
             {
@@ -159,7 +165,7 @@ namespace TalkBox
                 client.Close();
             }
         }
-        private void ReceiveConnection()
+        private void ReceiveConnection(ListBox lb)
         {
             UdpClient client = new UdpClient(8005);
             client.JoinMulticastGroup(IPAddress.Parse("230.230.230.230"), 50);
@@ -174,9 +180,8 @@ namespace TalkBox
                     if (msg.Type == 1)
                     {
                         if (!Subs.Contains(sub))
-                            Subs.Add(sub);
-                        // Кто-то пришёл
-                        MessageBox.Show(sub.name + " присоединился к разговору.");
+                            Subs.Add(sub); 
+                        lb.Items.Add("     " + sub.name + " присоединился к разговору.");
                         TcpClient sender = new TcpClient(remoteIp);
                         NetworkStream stream = sender.GetStream();
                         msg = new TalkPacket(1, UserName);
@@ -189,8 +194,7 @@ namespace TalkBox
                         if (Subs.Contains(sub))
                         {
                             Subs.Remove(sub);
-                            // Кто-то ливнул
-                            MessageBox.Show("Кто-то покинул чат.");
+                            lb.Items.Add("     " + sub.name + " покинул нас.");
                         }
                     }
                     else
@@ -201,12 +205,9 @@ namespace TalkBox
             {
                 MessageBox.Show(ex.Message);
             }
-            finally
-            {
-                client.Close();
-            }
+            client.Close();
         }
-        private void ReceiveMessage()
+        private void ReceiveMessage(ListBox lb)
         {
             TcpListener listener = new TcpListener(IPAddress.Parse(GetLocalIPAddress()), 50);
             listener.Start();
@@ -219,22 +220,28 @@ namespace TalkBox
                     NetworkStream stream = client.GetStream();
                     stream.Read(data, 0, data.Length);
                     TalkPacket msg = new TalkPacket(data);
+                    IPEndPoint iep = (IPEndPoint)client.Client.RemoteEndPoint;
                     if (msg.Type == 1)
                     {
-                        IPEndPoint iep = (IPEndPoint)client.Client.RemoteEndPoint;
                         Sub sub = new Sub(msg.Data.ToString(), iep);
                         if (!Subs.Contains(sub))
                         {
                             Subs.Add(sub);
-                            // Кто-то пришёл
-                            MessageBox.Show(sub.name + " присоединился к разговору.");
+                            lb.Items.Add("     " + sub.name + " присоединился к разговору.");
                         }
                     }
                     else if (msg.Type == 2)
                     {
-                        // Отображение полученного сообщения
-                        // ListMessages.Items.Add(Encoding.ASCII.GetString(msg.Data));
-                        MessageBox.Show("Сообщение получено.");
+                        string name = "Аноним";
+                        foreach (Sub sub in Subs)
+                        {
+                            if (sub.endPoint.Equals(iep))
+                            {
+                                name = sub.name;
+                                break;
+                            }
+                        }
+                        lb.Items.Add(name + ": " + Encoding.ASCII.GetString(msg.Data));
                     }
                     else
                         MessageBox.Show("An error occured!");
@@ -246,10 +253,7 @@ namespace TalkBox
             {
                 MessageBox.Show(ex.Message);
             }
-            finally
-            {
-                listener.Stop();
-            }
+            listener.Stop();
         }
         public static string GetLocalIPAddress()
         {
