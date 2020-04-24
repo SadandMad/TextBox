@@ -39,7 +39,7 @@ namespace TalkBox
             public TalkPacket(byte T, string D)
             {
                 Type = T;
-                Data = D.ToByteArr();
+                Data = Encoding.UTF8.GetBytes(D);
                 MsgLength = (UInt16)(3 + Data.Length);
             }
             public TalkPacket(byte T)
@@ -180,7 +180,7 @@ namespace TalkBox
                     IPEndPoint remoteIp = null;
                     byte[] data = client.Receive(ref remoteIp);
                     TalkPacket msg = new TalkPacket(data);
-                    Sub sub = new Sub(Encoding.ASCII.GetString(msg.Data), new IPEndPoint(remoteIp.Address, 8006));
+                    Sub sub = new Sub(Encoding.UTF8.GetString(msg.Data), new IPEndPoint(remoteIp.Address, 8006));
                     client.Close();
                     if (msg.Type == 1)
                     {
@@ -232,7 +232,7 @@ namespace TalkBox
                     IPEndPoint iep = new IPEndPoint (IPAddress.Parse(((IPEndPoint)client.Client.RemoteEndPoint).Address.ToString()), 8006);
                     if (msg.Type == 1)
                     {
-                        Sub sub = new Sub(Encoding.ASCII.GetString(msg.Data), iep);
+                        Sub sub = new Sub(Encoding.UTF8.GetString(msg.Data), iep);
                         if (!Subs.Contains(sub))
                         {
                             Subs.Add(sub);
@@ -255,7 +255,7 @@ namespace TalkBox
                         }
                         this.Invoke(new MethodInvoker(() =>
                         {
-                            ListMessages.Items.Add(name + ": " + Encoding.ASCII.GetString(msg.Data));
+                            ListMessages.Items.Add(name + ": " + Encoding.UTF8.GetString(msg.Data));
                         }));
                     }
                     else
@@ -281,14 +281,6 @@ namespace TalkBox
                 }
             }
             throw new Exception("No network adapters with an IPv4 address in the system!");
-        }
-    }
-    public static class StringExtension
-    {
-        public static byte[] ToByteArr(this string str)
-        {
-            byte[] data = Encoding.ASCII.GetBytes(str);
-            return data;
         }
     }
 }
