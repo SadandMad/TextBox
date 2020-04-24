@@ -92,17 +92,15 @@ namespace TalkBox
         {
             if (Connected && textBoxMsg.Text.Length > 0)
             {
-                TalkPacket msg = new TalkPacket(3, textBoxMsg.Text);
+                TalkPacket msg = new TalkPacket(2, textBoxMsg.Text);
                 ListMessages.Items.Add(" Вы: " + textBoxMsg.Text);
                 textBoxMsg.Text = "";
+                Socket client = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
                 foreach (Sub sub in Subs)
                 {
-                    IPEndPoint iep = sub.endPoint;
-                    TcpClient client = new TcpClient(iep);
-                    NetworkStream stream = client.GetStream();
-                    stream.Write(msg.getBytes(), 0, msg.MsgLength);
-                    stream.Close();
+                    client.Connect(sub.endPoint);
+                    client.Send(msg.getBytes(), SocketFlags.None);
                     client.Close();
                 }
             }
@@ -171,32 +169,24 @@ namespace TalkBox
             {
                 while (!token.IsCancellationRequested)
                 {
-                    UdpClient client = new UdpClient(8005);////
+                    UdpClient client = new UdpClient(8005);
                     client.JoinMulticastGroup(IPAddress.Parse("230.230.230.230"), 100);
-                    IPEndPoint remoteIp = null;////
+                    IPEndPoint remoteIp = null;
                     byte[] data = client.Receive(ref remoteIp);
                     TalkPacket msg = new TalkPacket(data);
                     Sub sub = new Sub(Encoding.ASCII.GetString(msg.Data), new IPEndPoint(remoteIp.Address, 8006));
-                    MessageBox.Show(" + " + remoteIp.ToString()); ////////////////
-                    client.Close(); ////
+                    client.Close();
                     if (msg.Type == 1)
                     {
                         if (!Subs.Contains(sub))
                             Subs.Add(sub);
                         //lb.Items.Add("     " + sub.name + " присоединился к разговору.");
-                        Socket send = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-                        //TcpClient sender = new TcpClient(sub.endPoint.Address.ToString(), 8006);
-                        send.Connect(sub.endPoint);
-                        MessageBox.Show("Connected");///////////
-                        //NetworkStream stream = sender.GetStream();
-                        //MessageBox.Show("Ready to write!");///////////
+                        MessageBox.Show(sub.name + " присоединился к разговору.");///////////////////////////////////////////////////////////////
                         msg = new TalkPacket(1, UserName);
-                        //stream.Write(msg.getBytes(), 0, msg.MsgLength);
-                        send.Send(msg.getBytes(), SocketFlags.None);
-                        MessageBox.Show("Shit, it's gone!!!");//////////
-                        send.Close();
-                        //stream.Close();
-                        //sender.Close();                    
+                        Socket sender = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                        sender.Connect(sub.endPoint.Address, 8006);
+                        sender.Send(msg.getBytes(), SocketFlags.None);
+                        sender.Close();
                     }
                     else if (msg.Type == 0)
                     {
@@ -217,8 +207,7 @@ namespace TalkBox
         }
         private void ReceiveMessage(ListBox lb)
         {
-            byte[] data = new byte[65536];
-            try
+            //try
             {
                 while (!token.IsCancellationRequested)
                 {
@@ -226,17 +215,19 @@ namespace TalkBox
                     listener.Start();
                     TcpClient client = listener.AcceptTcpClient();
                     NetworkStream stream = client.GetStream();
+                    byte[] data = new byte[65536];
                     stream.Read(data, 0, data.Length);
                     TalkPacket msg = new TalkPacket(data);
-                    MessageBox.Show(client.Client.RemoteEndPoint.ToString());
-                    IPEndPoint iep = (IPEndPoint)client.Client.RemoteEndPoint;
+                    IPEndPoint iep = new IPEndPoint (IPAddress.Parse(((IPEndPoint)client.Client.RemoteEndPoint).Address.ToString()), 8006);
+                    MessageBox.Show("Type:"+msg.Type.ToString()+"|Data:"+Encoding.ASCII.GetString(msg.Data));
                     if (msg.Type == 1)
                     {
                         Sub sub = new Sub(Encoding.ASCII.GetString(msg.Data), iep);
                         if (!Subs.Contains(sub))
                         {
                             Subs.Add(sub);
-                            lb.Items.Add("     " + sub.name + " присоединился к разговору.");
+                            //lb.Items.Add("     " + sub.name + " присоединился к разговору.");
+                            MessageBox.Show(sub.name + " присоединился к разговору.");
                         }
                     }
                     else if (msg.Type == 2)
@@ -250,7 +241,8 @@ namespace TalkBox
                                 break;
                             }
                         }
-                        lb.Items.Add(name + ": " + Encoding.ASCII.GetString(msg.Data));
+                        //lb.Items.Add(name + ": " + Encoding.ASCII.GetString(msg.Data));
+                        MessageBox.Show(name + ": " + Encoding.ASCII.GetString(msg.Data));
                     }
                     else
                         MessageBox.Show("An error occured!");
@@ -259,9 +251,9 @@ namespace TalkBox
                     listener.Stop();
                 }
             }
-            catch (Exception ex)
+            //catch (Exception ex)
             {
-                MessageBox.Show(ex.Message);
+            //    MessageBox.Show(ex.Message);
             }
         }
         public static string GetLocalIPAddress()
