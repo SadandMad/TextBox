@@ -58,7 +58,7 @@
             this.ListMessages.ItemHeight = 16;
             this.ListMessages.Location = new System.Drawing.Point(12, 57);
             this.ListMessages.Name = "ListMessages";
-            this.ListMessages.Size = new System.Drawing.Size(776, 276);
+            this.ListMessages.Size = new System.Drawing.Size(776, 260);
             this.ListMessages.TabIndex = 2;
             // 
             // textBoxMsg
