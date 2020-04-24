@@ -182,6 +182,7 @@ namespace TalkBox
                     TalkPacket msg = new TalkPacket(data);
                     Sub sub = new Sub(Encoding.UTF8.GetString(msg.Data), new IPEndPoint(remoteIp.Address, 8006));
                     client.Close();
+                    MessageBox.Show("Type:" + msg.Type.ToString()+"|Data:"+Encoding.UTF8.GetString(msg.Data));///////////////////////////////////////////////////////
                     if (msg.Type == 1)
                     {
                         if (!Subs.Contains(sub))
@@ -201,11 +202,11 @@ namespace TalkBox
                         if (Subs.Contains(sub))
                         {
                             Subs.Remove(sub);
-                            this.Invoke(new MethodInvoker(() =>
-                            {
-                                ListMessages.Items.Add("     " + sub.name + " покинул нас.");
-                            }));
                         }
+                        this.Invoke(new MethodInvoker(() =>
+                        {
+                            ListMessages.Items.Add("     " + sub.name + " покинул нас.");
+                        }));
                     }
                     else
                         MessageBox.Show("An error occured!");
