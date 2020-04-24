@@ -166,28 +166,37 @@ namespace TalkBox
         }
         private void ReceiveConnection(ListBox lb)
         {
-            UdpClient client = new UdpClient(8005);
-            client.JoinMulticastGroup(IPAddress.Parse("230.230.230.230"), 50);
-            IPEndPoint remoteIp = null;
+            
             //try
             {
                 while (!token.IsCancellationRequested)
                 {
+                    UdpClient client = new UdpClient(8005);////
+                    client.JoinMulticastGroup(IPAddress.Parse("230.230.230.230"), 100);
+                    IPEndPoint remoteIp = null;////
                     byte[] data = client.Receive(ref remoteIp);
                     TalkPacket msg = new TalkPacket(data);
-                    Sub sub = new Sub(Encoding.ASCII.GetString(msg.Data), remoteIp);
+                    Sub sub = new Sub(Encoding.ASCII.GetString(msg.Data), new IPEndPoint(remoteIp.Address, 8006));
+                    MessageBox.Show(" + " + remoteIp.ToString()); ////////////////
+                    client.Close(); ////
                     if (msg.Type == 1)
                     {
                         if (!Subs.Contains(sub))
                             Subs.Add(sub);
-                        lb.Items.Add("     " + sub.name + " присоединился к разговору.");
-                        MessageBox.Show(sub.name + " присоединился к разговору.");///////////////////////////
-                        TcpClient sender = new TcpClient(remoteIp);
-                        NetworkStream stream = sender.GetStream();
+                        //lb.Items.Add("     " + sub.name + " присоединился к разговору.");
+                        Socket send = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                        //TcpClient sender = new TcpClient(sub.endPoint.Address.ToString(), 8006);
+                        send.Connect(sub.endPoint);
+                        MessageBox.Show("Connected");///////////
+                        //NetworkStream stream = sender.GetStream();
+                        //MessageBox.Show("Ready to write!");///////////
                         msg = new TalkPacket(1, UserName);
-                        stream.Write(msg.getBytes(), 0, msg.MsgLength);
-                        stream.Close();
-                        sender.Close();
+                        //stream.Write(msg.getBytes(), 0, msg.MsgLength);
+                        send.Send(msg.getBytes(), SocketFlags.None);
+                        MessageBox.Show("Shit, it's gone!!!");//////////
+                        send.Close();
+                        //stream.Close();
+                        //sender.Close();                    
                     }
                     else if (msg.Type == 0)
                     {
@@ -195,7 +204,6 @@ namespace TalkBox
                         {
                             Subs.Remove(sub);
                             lb.Items.Add("     " + sub.name + " покинул нас.");
-                            MessageBox.Show(sub.name + " покинул нас.");/////////////////////////////
                         }
                     }
                     else
@@ -204,23 +212,23 @@ namespace TalkBox
             }
             //catch (Exception ex)
             {
-            //    MessageBox.Show(ex.Message);
+                //    MessageBox.Show(ex.Message);
             }
-            client.Close();
         }
         private void ReceiveMessage(ListBox lb)
         {
-            TcpListener listener = new TcpListener(IPAddress.Parse(GetLocalIPAddress()), 50);
-            listener.Start();
             byte[] data = new byte[65536];
             try
             {
                 while (!token.IsCancellationRequested)
                 {
+                    TcpListener listener = new TcpListener(IPAddress.Parse(GetLocalIPAddress()), 8006);
+                    listener.Start();
                     TcpClient client = listener.AcceptTcpClient();
                     NetworkStream stream = client.GetStream();
                     stream.Read(data, 0, data.Length);
                     TalkPacket msg = new TalkPacket(data);
+                    MessageBox.Show(client.Client.RemoteEndPoint.ToString());
                     IPEndPoint iep = (IPEndPoint)client.Client.RemoteEndPoint;
                     if (msg.Type == 1)
                     {
@@ -229,7 +237,6 @@ namespace TalkBox
                         {
                             Subs.Add(sub);
                             lb.Items.Add("     " + sub.name + " присоединился к разговору.");
-                            MessageBox.Show(sub.name + " присоединился к разговору.");////////////////////////////////
                         }
                     }
                     else if (msg.Type == 2)
@@ -244,19 +251,18 @@ namespace TalkBox
                             }
                         }
                         lb.Items.Add(name + ": " + Encoding.ASCII.GetString(msg.Data));
-                        MessageBox.Show(name + ": " + Encoding.ASCII.GetString(msg.Data));///////////////////////////////
                     }
                     else
                         MessageBox.Show("An error occured!");
                     client.Close();
                     stream.Close();
+                    listener.Stop();
                 }
             }
             catch (Exception ex)
             {
                 MessageBox.Show(ex.Message);
             }
-            listener.Stop();
         }
         public static string GetLocalIPAddress()
         {
