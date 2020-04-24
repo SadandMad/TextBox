@@ -195,11 +195,6 @@ namespace TalkBox
                         Socket sender = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
                         sender.Connect(sub.endPoint.Address, 8006);
                         sender.Send(msg.getBytes(), SocketFlags.None);
-                        foreach (string str in ListMessages.Items)
-                        {
-                            msg = new TalkPacket(3, str);
-                            sender.Send(msg.getBytes(), SocketFlags.None);
-                        }
                         sender.Close();
                     }
                     else if (msg.Type == 0)
@@ -262,13 +257,6 @@ namespace TalkBox
                         this.Invoke(new MethodInvoker(() =>
                         {
                             ListMessages.Items.Add(DateTime.Now.ToLongTimeString() + " " + name + "(" + iep.ToString() + "): " + Encoding.Unicode.GetString(msg.Data));
-                        }));
-                    }
-                    else if (msg.Type == 3)
-                    {
-                        this.Invoke(new MethodInvoker(() =>
-                        {
-                            ListMessages.Items.Add(Encoding.Unicode.GetString(msg.Data));
                         }));
                     }
                     else
