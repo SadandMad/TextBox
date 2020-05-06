@@ -199,10 +199,15 @@ namespace TalkBox
                     }
                     else if (msg.Type == 0)
                     {
-                        if (Subs.Contains(sub))
+
+                        foreach (Sub Ssub in Subs)
                         {
-                            Subs.Remove(sub);
-                        }
+                            if (Ssub.endPoint == sub.endPoint)
+                            {
+                                Subs.Remove(Ssub);
+                                break;
+                            }
+                        }   
                         this.Invoke(new MethodInvoker(() =>
                         {
                             ListMessages.Items.Add("     " + DateTime.Now.ToLongTimeString() + " " + sub.name + "(" + sub.endPoint.ToString() + "): " + " покинул нас.");
